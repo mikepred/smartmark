@@ -100,39 +100,6 @@ smartmark/
     └── ui.js           # UI helper functions
 ```
 
-### Development Setup
-
-1. Install development dependencies:
-
-```bash
-npm install
-```
-
-1. Load the extension in Chrome:
-   - Open `chrome://extensions/`
-   - Enable "Developer mode"
-   - Click "Load unpacked" and select the project folder
-
-1. Make your changes and reload the extension for testing
-
-### Testing
-
-The project includes test scripts for development:
-
-```bash
-# Run unit tests
-npm test
-
-# Run tests in watch mode
-npm run test:watch
-
-# Generate coverage report
-npm run test:coverage
-
-# Run end-to-end tests
-npm run test:e2e
-```
-
 ### Key Architecture Components
 
 - **Service Worker (`background.js`)**: Handles AI classification requests and bookmark management
