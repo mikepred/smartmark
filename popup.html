@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Bookmark Auto-Classifier</title>
+  <style>
+    body { 
+      font-family: system-ui, -apple-system, sans-serif; 
+      text-align: center; 
+      padding: 1em; 
+      width: 250px;
+      margin: 0;
+    }
+    button { 
+      width: 100%; 
+      padding: 1em; 
+      font-size: 1em;
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #1557b0;
+    }
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    #message { 
+      margin-top: 1em; 
+      min-height: 20px;
+      word-wrap: break-word;
+    }
+    #suggestionsContainer {
+      margin-top: 1em;
+    }
+    #saveBookmarkBtn {
+      display: none;
+      margin-top: 1em;
+    }
+  </style>
+</head>
+<body>
+  <button id="classifyBtn" aria-label="Classify current page as bookmark">Classify Bookmark</button>
+  <div id="message" role="status" aria-live="polite"></div>
+  <div id="suggestionsContainer"></div>
+  <button id="saveBookmarkBtn">Save Bookmark</button>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

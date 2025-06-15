@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <!-- X-Frame-Options must be set via HTTP headers; removed -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Bookmark Auto-Classifier Settings</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; padding: 1em; width: 400px; }
+    label { display: block; margin-bottom: 0.5em; }
+    input, select { 
+      width: 100%; 
+      padding: 0.5em; 
+      margin-bottom: 1em; 
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button { 
+      padding: 0.7em 1.5em;
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #1557b0;
+    }
+    #status { 
+      margin-top: 1em; 
+      font-weight: bold;
+      min-height: 20px;
+    }
+    .config-section { margin-bottom: 1em; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <h1>Settings</h1>
+  
+  <form id="settingsForm" autocomplete="off">
+    <label for="aiProvider">AI Provider:</label>
+    <select id="aiProvider" name="aiProvider" aria-label="Select AI Provider">
+      <option value="gemini">Gemini</option>
+      <option value="lmstudio">LM Studio (Local)</option>
+      <option value="ollama">Ollama (Local)</option>
+    </select>
+    
+    <div id="geminiConfig" class="config-section">
+      <label for="apiKey">Gemini API Key:</label>
+      <input type="password" 
+             id="apiKey" 
+             name="apiKey"
+             autocomplete="off"
+             spellcheck="false"
+             required
+             pattern="[A-Za-z0-9\-_]{39}"
+             placeholder="Enter your API key"
+             aria-label="Gemini API Key input field">
+    </div>
+    
+    <div id="lmstudioConfig" class="config-section hidden">
+      <label for="lmstudioHost">LM Studio Host:</label>
+      <input type="text" 
+             id="lmstudioHost" 
+             name="lmstudioHost"
+             placeholder="e.g., localhost"
+             aria-label="LM Studio Host input field">
+      <label for="lmstudioPort">LM Studio Port:</label>
+      <input type="number" 
+             id="lmstudioPort" 
+             name="lmstudioPort"
+             placeholder="e.g., 1234"
+             aria-label="LM Studio Port input field">
+    </div>
+    
+    <div id="ollamaConfig" class="config-section hidden">
+      <label for="ollamaHost">Ollama Host:</label>
+      <input type="text" 
+             id="ollamaHost" 
+             name="ollamaHost"
+             placeholder="e.g., localhost"
+             aria-label="Ollama Host input field">
+      <label for="ollamaPort">Ollama Port:</label>
+      <input type="number" 
+             id="ollamaPort" 
+             name="ollamaPort"
+             placeholder="e.g., 11434"
+             aria-label="Ollama Port input field">
+    </div>
+    
+    <button type="submit" id="save">Save</button>
+    <div id="status" role="alert" aria-live="polite"></div>
+  </form>
+
+  <script type="module" src="settings.js"></script>
+</body>
+</html>
