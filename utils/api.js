@@ -1,34 +1,16 @@
-// File: utils/api.js
+/**
+ * @fileoverview API Communication Module
+ * @module utils/api
+ * @description Handles all AI API communications for bookmark classification.
+ * This module provides a unified interface for interacting with multiple AI providers
+ * (Gemini, LM Studio, Ollama) through the provider abstraction layer.
+ */
 
 import { getBookmarkFolderStructure } from './bookmark.js';
 import { getFromStorage } from './storage.js';
-
-// API configuration constants
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent';
-const MAX_OUTPUT_TOKENS = 50;
-const TEMPERATURE = 0.7;
-
-// LM Studio default configuration
-const LMSTUDIO_DEFAULTS = {
-  host: 'localhost',
-  port: '1234',
-  model: 'gemma-3-1b' // Default model, can be configured later
-};
-
-// Ollama default configuration
-const OLLAMA_DEFAULTS = {
-  host: 'localhost',
-  port: '11434',
-  model: 'gemma3:4b' // Default model, can be configured later
-};
-
-// Token management configuration
-const TOKEN_LIMITS = {
-  maxPromptTokens: 900000,  // Conservative limit for Gemini (1M available)
-  maxResponseTokens: 200,   // Current setting
-  contextBufferTokens: 50000, // Safety buffer
-  maxContextTokens: 50000   // Default max tokens for bookmark context
-};
+import { config, getStorageKey } from './config/index.js';
+import { ConfigurationError, logger } from './error/index.js';
+import { AIProviderFactory, TokenManager } from './providers/index.js';
 
 /**
  * Estimates the token count for a given text string
@@ -45,7 +27,7 @@ function estimateTokenCount(text) {
  * @returns {object} Token limits configuration
  */
 function getTokenLimits() {
-  return { ...TOKEN_LIMITS };
+  return { ...config.get('api.tokenLimits') };
 }
 
 /**
@@ -108,12 +90,25 @@ When suggesting new folder paths, consider:
 
 /**
  * Generates the base prompt for bookmark classification
+ * @private
  * @param {object} metadata - The bookmark metadata
- * @param {string} contextSection - The context section to include
- * @returns {string} Complete prompt text
+ * @param {string} metadata.title - Page title
+ * @param {string} metadata.domain - Domain name
+ * @param {string} metadata.url - Full URL
+ * @param {string} metadata.description - Page description
+ * @param {string} metadata.heading - Main heading
+ * @param {string} [metadata.author] - Page author
+ * @param {string} [metadata.publishedDate] - Publication date
+ * @param {string[]} metadata.urlPath - URL path segments
+ * @param {string} [metadata.keywords] - Page keywords
+ * @param {string} [metadata.mainContent] - Main content snippet
+ * @param {string} [contextSection=''] - The context section to include
+ * @returns {string} Complete prompt text formatted for AI classification
  */
 function buildPrompt(metadata, contextSection = '') {
-  return `Classify the following bookmark and return the top 3 most likely folder paths for this bookmark, in order of confidence, as a JSON array. Each item should have 'folderPath' and 'confidence' fields. Example: [{"folderPath":"Tech/Python","confidence":0.92},{"folderPath":"Programming/AI","confidence":0.75},{"folderPath":"Learning","confidence":0.60}]. Return ONLY the JSON array.${contextSection}
+  return `Classify the following bookmark and return the top 5 most likely folder paths for this bookmark, in order of confidence, as a JSON array. Aim for 2 to 3 levels of depth (e.g., 'Category/SubCategory' or 'Category/SubCategory/SpecificTopic') where appropriate. Each item should have 'folderPath' and 'confidence' fields. Example: [{"folderPath":"Tech/AI/LLMs","confidence":0.92},{"folderPath":"Programming/JavaScript/Frameworks","confidence":0.85},{"folderPath":"Business/Startups/Funding","confidence":0.70}].
+
+IMPORTANT: Avoid suggesting overly broad, single-level categories (e.g., 'AI', 'Programming', 'Tech') if a more specific multi-level folder path (e.g., 'AI/Machine Learning', 'Programming/JavaScript/React', 'Tech/Gadgets/Smartphones') would be more appropriate for the content. A single-level category should only be used if the bookmark is a very general, top-level resource about that broad topic itself. Return ONLY the JSON array.${contextSection}
 
 BOOKMARK TO CLASSIFY:
 Title: ${metadata.title}
@@ -130,391 +125,109 @@ Main Content Snippet: ${(metadata.mainContent || '').substring(0, 1000)}...`;
 
 /**
  * Retrieves the API key from local storage
+ * @async
  * @returns {Promise<string>} The API key
- * @throws {Error} If API key is not set
+ * @throws {ConfigurationError} If API key is not set
+ * @example
+ * try {
+ *   const apiKey = await getApiKey();
+ *   // Use apiKey for API calls
+ * } catch (error) {
+ *   console.error('API key not configured:', error);
+ * }
  */
 export async function getApiKey() {
-  const result = await chrome.storage.local.get(['apiKey']);
-  if (!result.apiKey) {
-    throw new Error("API key not set. Please configure it in the extension settings.");
+  const apiKeyStorageKey = getStorageKey('apiKey');
+  const result = await chrome.storage.local.get([apiKeyStorageKey]);
+  if (!result[apiKeyStorageKey]) {
+    throw new ConfigurationError("API key not set. Please configure it in the extension settings.", 'apiKey');
   }
-  return result.apiKey;
-}
-
-/**
- * Gets LM Studio configuration from storage
- * @returns {Promise<object>} LM Studio configuration
- */
-async function getLMStudioConfig() {
-  const host = await getFromStorage('lmstudioHost') || LMSTUDIO_DEFAULTS.host;
-  const port = await getFromStorage('lmstudioPort') || LMSTUDIO_DEFAULTS.port;
-  return { host, port };
-}
-
-/**
- * Gets Ollama configuration from storage
- * @returns {Promise<object>} Ollama configuration
- */
-async function getOllamaConfig() {
-  const host = await getFromStorage('ollamaHost') || OLLAMA_DEFAULTS.host;
-  const port = await getFromStorage('ollamaPort') || OLLAMA_DEFAULTS.port;
-  return { host, port };
-}
-
-/**
- * Gets the currently selected AI provider
- * @returns {Promise<string>} The selected provider ('gemini', 'lmstudio', 'ollama')
- */
-async function getAIProvider() {
-  return await getFromStorage('aiProvider') || 'gemini';
+  return result[apiKeyStorageKey];
 }
 
 /**
  * Sends a request to the selected LLM API to classify a bookmark into folder paths.
  * Enhanced with intelligent token management and adaptive context optimization.
  * Supports multiple providers: Gemini, LM Studio, and Ollama.
+ * 
+ * @async
  * @param {object} metadata - The metadata of the page to classify
- * @param {string} [apiKey] - The API key for authentication (required for Gemini)
+ * @param {string} metadata.title - Page title
+ * @param {string} metadata.domain - Domain name
+ * @param {string} metadata.url - Full URL
+ * @param {string} metadata.description - Page description
+ * @param {string} metadata.heading - Main heading
+ * @param {string} [metadata.author] - Page author
+ * @param {string} [metadata.publishedDate] - Publication date
+ * @param {string[]} metadata.urlPath - URL path segments
+ * @param {string} [metadata.keywords] - Page keywords
+ * @param {string} [metadata.mainContent] - Main content snippet
+ * @param {string} [apiKey=null] - The API key for authentication (required for Gemini)
  * @param {boolean} [forceRefresh=false] - Force refresh of bookmark folder cache
  * @param {number} [maxContextTokens=50000] - Maximum tokens to allocate for bookmark context
- * @returns {Promise} The suggested folder paths from the API response
- * @throws {Error} If the API request fails or response is invalid
+ * 
+ * @returns {Promise<Array<{folderPath: string, confidence: number}>>} The suggested folder paths from the API
+ * 
+ * @throws {ConfigurationError} If provider configuration is invalid
+ * @throws {APIError} If the API request fails
+ * @throws {NetworkError} If network connection fails
+ * 
+ * @example
+ * const metadata = {
+ *   title: 'Machine Learning Tutorial',
+ *   domain: 'example.com',
+ *   url: 'https://example.com/ml-tutorial',
+ *   description: 'Learn ML basics',
+ *   heading: 'Introduction to Machine Learning',
+ *   urlPath: ['ml-tutorial'],
+ *   mainContent: 'This tutorial covers...'
+ * };
+ * 
+ * try {
+ *   const suggestions = await getFolderPathFromLLM(metadata, apiKey);
+ *   console.log('Suggested folders:', suggestions);
+ * } catch (error) {
+ *   console.error('Classification failed:', error);
+ * }
  */
-export async function getFolderPathFromLLM(metadata, apiKey = null, forceRefresh = false, maxContextTokens = TOKEN_LIMITS.maxContextTokens) {
+export async function getFolderPathFromLLM(metadata, apiKey = null, forceRefresh = false, maxContextTokens = config.get('api.tokenLimits.maxContextTokens')) {
   const startTime = performance.now();
   
   // Get existing bookmark folder structure for context
   const existingFolders = await getBookmarkFolderStructure(forceRefresh);
   
-  if (!existingFolders || existingFolders.length === 0) {
-    // No context needed - proceed with basic prompt
-    console.log('📊 Token Management: No bookmark folders found, using basic prompt');
-    const basicPrompt = buildPrompt(metadata);
-    const tokenCount = estimateTokenCount(basicPrompt);
-    console.log(`📊 Basic prompt tokens: ${tokenCount}`);
-    
-    // Get the selected AI provider and call appropriate API
-    const provider = await getAIProvider();
-    console.log(`🤖 Using AI provider: ${provider}`);
-    
-    switch (provider) {
-      case 'lmstudio':
-        const lmstudioConfig = await getLMStudioConfig();
-        return await callLMStudioAPI(basicPrompt, lmstudioConfig);
-      
-      case 'ollama':
-        // TODO: Implement Ollama support in future task
-        throw new Error('Ollama provider not yet implemented');
-      
-      case 'gemini':
-      default:
-        if (!apiKey) {
-          throw new Error('API key is required for Gemini provider');
-        }
-        return await callGeminiAPI(basicPrompt, apiKey);
-    }
-  }
-
-  // Build and optimize context with token management
+  // Build base prompt
+  const basePrompt = buildPrompt(metadata);
+  
+  // Optimize context if folders exist
   let contextSection = '';
-  let optimizedFolders = existingFolders;
-  let optimizationApplied = false;
-
-  // Step 1: Try full context first
-  const fullContextSection = buildContextSection(existingFolders);
-  const fullPrompt = buildPrompt(metadata, fullContextSection);
-  const fullPromptTokens = estimateTokenCount(fullPrompt);
-
-  if (fullPromptTokens <= maxContextTokens) {
-    // Full context fits within limits
-    contextSection = fullContextSection;
-    console.log(`📊 Token Management: Full context included (${existingFolders.length} folders, ${fullPromptTokens} tokens)`);
+  if (existingFolders && existingFolders.length > 0) {
+    const optimizationResult = TokenManager.optimizeContext(
+      existingFolders,
+      basePrompt,
+      maxContextTokens
+    );
+    contextSection = TokenManager.buildContextSection(optimizationResult.folders);
   } else {
-    // Need to optimize - apply progressive truncation
-    console.warn(`📊 Token Management: Large bookmark structure detected (${existingFolders.length} folders, ${fullPromptTokens} tokens). Applying optimization...`);
-    optimizationApplied = true;
-
-    // Try progressively smaller context sizes
-    const maxFolderLimits = [100, 75, 50, 25, 15, 10];
-    let optimizationSuccessful = false;
-
-    for (const limit of maxFolderLimits) {
-      optimizedFolders = prioritizeFolders(existingFolders, limit);
-      contextSection = buildContextSection(optimizedFolders);
-      const testPrompt = buildPrompt(metadata, contextSection);
-      const testTokens = estimateTokenCount(testPrompt);
-
-      if (testTokens <= maxContextTokens) {
-        console.log(`📊 Token Management: Optimized to ${optimizedFolders.length}/${existingFolders.length} folders (${testTokens} tokens)`);
-        optimizationSuccessful = true;
-        break;
-      }
-    }
-
-    // Final fallback: remove context entirely if still too large
-    if (!optimizationSuccessful) {
-      console.warn('📊 Token Management: Context too large even after optimization - proceeding without bookmark context');
-      contextSection = '';
-      optimizedFolders = [];
-    }
+    logger.info('📊 Token Management: No bookmark folders found, using basic prompt');
   }
 
-  // Build final prompt and call appropriate API
+  // Build final prompt
   const finalPrompt = buildPrompt(metadata, contextSection);
-  const finalTokens = estimateTokenCount(finalPrompt);
   
-  // Enhanced logging
-  console.log(`📊 Token Management Summary:`);
-  console.log(`   Original folders: ${existingFolders.length}`);
-  console.log(`   Included folders: ${optimizedFolders.length}`);
-  console.log(`   Final prompt tokens: ${finalTokens}`);
-  console.log(`   Optimization applied: ${optimizationApplied}`);
-  
-  if (optimizationApplied && optimizedFolders.length > 0) {
-    console.log(`   Priority folders included: ${optimizedFolders.slice(0, 5).join(', ')}${optimizedFolders.length > 5 ? '...' : ''}`);
-  }
-
-  const endTime = performance.now();
-  console.log(`📊 Token management processing time: ${(endTime - startTime).toFixed(2)}ms`);
-
-  // Get the selected AI provider and call appropriate API
-  const provider = await getAIProvider();
-  console.log(`🤖 Using AI provider: ${provider}`);
-  
-  switch (provider) {
-    case 'lmstudio':
-      const lmstudioConfig = await getLMStudioConfig();
-      return await callLMStudioAPI(finalPrompt, lmstudioConfig);
-    
-    case 'ollama':
-      const ollamaConfig = await getOllamaConfig();
-      return await callOllamaAPI(finalPrompt, ollamaConfig);
-    
-    case 'gemini':
-    default:
-      if (!apiKey) {
-        throw new Error('API key is required for Gemini provider');
-      }
-      return await callGeminiAPI(finalPrompt, apiKey);
-  }
-}
-
-/**
- * Makes an API call to LM Studio
- * @param {string} prompt - The complete prompt to send
- * @param {object} config - LM Studio configuration (host, port)
- * @returns {Promise} The parsed suggestions from the API
- */
-async function callLMStudioAPI(prompt, config) {
-  const { host, port } = config;
-  const apiUrl = `http://${host}:${port}/v1/chat/completions`;
-  
-  const requestBody = {
-    model: LMSTUDIO_DEFAULTS.model, // LM Studio will use whatever model is loaded
-    messages: [
-      {
-        role: "user",
-        content: prompt
-      }
-    ],
-    temperature: TEMPERATURE,
-    max_tokens: 200,
-    stream: false
-  };
-
-  console.log(`🔌 Calling LM Studio API at ${apiUrl}`);
+  // Get the AI provider and make the request
+  const provider = await AIProviderFactory.createCurrentProvider({ apiKey });
+  logger.info(`🤖 Using AI provider: ${provider.name}`);
   
   try {
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      let errorMessage = `LM Studio API Error: ${response.status} ${response.statusText}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error && errorData.error.message) {
-          errorMessage = `LM Studio API Error: ${errorData.error.message}`;
-        }
-      } catch (e) {
-        // If error response isn't JSON, use the status text
-      }
-      throw new Error(errorMessage);
-    }
-
-    const data = await response.json();
+    const suggestions = await provider.getFolderSuggestions(finalPrompt);
     
-    if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
-      throw new Error("LM Studio API Error: Invalid response format or no content returned.");
-    }
+    const endTime = performance.now();
+    logger.debug(`✅ Request completed in ${(endTime - startTime).toFixed(2)}ms`);
     
-    const rawResponse = data.choices[0].message.content.trim();
-    console.log('LM Studio rawResponse:', rawResponse);
-    
-    // Try to parse the JSON array from the response
-    try {
-      let jsonText = rawResponse;
-      // If not valid JSON, try to extract the first JSON array
-      if (!jsonText.trim().startsWith('[')) {
-        const firstBracket = jsonText.indexOf('[');
-        const lastBracket = jsonText.lastIndexOf(']');
-        if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-          jsonText = jsonText.substring(firstBracket, lastBracket + 1);
-        }
-      }
-      const suggestions = JSON.parse(jsonText);
-      if (!Array.isArray(suggestions)) throw new Error('AI did not return an array');
-      return suggestions;
-    } catch (e) {
-      throw new Error('Failed to parse AI folder suggestions: ' + e.message + '\nRaw response: ' + rawResponse);
-    }
-    
-  } catch (error) {
-    if (error.name === 'TypeError' && error.message.includes('fetch')) {
-      throw new Error(`Cannot connect to LM Studio at ${apiUrl}. Please ensure LM Studio is running and accessible.`);
-    }
-    throw error;
-  }
-}
-
-/**
- * Makes an API call to Ollama
- * @param {string} prompt - The complete prompt to send
- * @param {object} config - Ollama configuration (host, port)
- * @returns {Promise} The parsed suggestions from the API
- */
-async function callOllamaAPI(prompt, config) {
-  const { host, port } = config;
-  const apiUrl = `http://${host}:${port}/api/generate`;
-  
-  const requestBody = {
-    model: OLLAMA_DEFAULTS.model, // Ollama will use the specified model
-    prompt: prompt,
-    format: 'json', // Request JSON format for easier parsing
-    stream: false,
-    options: {
-      temperature: TEMPERATURE,
-      num_predict: 200 // Equivalent to max_tokens
-    }
-  };
-
-  console.log(`🔌 Calling Ollama API at ${apiUrl}`);
-  
-  try {
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      let errorMessage = `Ollama API Error: ${response.status} ${response.statusText}`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error) {
-          errorMessage = `Ollama API Error: ${errorData.error}`;
-        }
-      } catch (e) {
-        // If error response isn't JSON, use the status text
-      }
-      throw new Error(errorMessage);
-    }
-
-    const data = await response.json();
-    
-    if (!data.response) {
-      throw new Error("Ollama API Error: Invalid response format or no content returned.");
-    }
-    
-    const rawResponse = data.response.trim();
-    console.log('Ollama rawResponse:', rawResponse);
-    
-    // Try to parse the JSON array from the response
-    try {
-      let jsonText = rawResponse;
-      // If not valid JSON, try to extract the first JSON array
-      if (!jsonText.trim().startsWith('[')) {
-        const firstBracket = jsonText.indexOf('[');
-        const lastBracket = jsonText.lastIndexOf(']');
-        if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-          jsonText = jsonText.substring(firstBracket, lastBracket + 1);
-        }
-      }
-      const suggestions = JSON.parse(jsonText);
-      if (!Array.isArray(suggestions)) throw new Error('AI did not return an array');
-      return suggestions;
-    } catch (e) {
-      throw new Error('Failed to parse AI folder suggestions: ' + e.message + '\nRaw response: ' + rawResponse);
-    }
-    
-  } catch (error) {
-    if (error.name === 'TypeError' && error.message.includes('fetch')) {
-      throw new Error(`Cannot connect to Ollama at ${apiUrl}. Please ensure Ollama is running and accessible.`);
-    }
-    throw error;
-  }
-}
-
-/**
- * Makes the actual API call to Gemini
- * @param {string} prompt - The complete prompt to send
- * @param {string} apiKey - The API key for authentication
- * @returns {Promise} The parsed suggestions from the API
- */
-async function callGeminiAPI(prompt, apiKey) {
-  const response = await fetch(GEMINI_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey
-    },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: TEMPERATURE,
-        maxOutputTokens: 200
-      }
-    })
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    const errorMessage = errorData.error?.message || 'Unknown error';
-    throw new Error(`Gemini API Error: ${errorMessage}`);
-  }
-
-  const data = await response.json();
-  if (data.candidates && data.candidates[0].finishReason === 'SAFETY') {
-    throw new Error("Gemini API Error: The request was blocked due to safety concerns.");
-  }
-  if (!data.candidates || !data.candidates[0].content) {
-    throw new Error("Gemini API Error: Invalid response format or no content returned.");
-  }
-  
-  const rawResponse = data.candidates[0].content.parts[0].text.trim();
-  console.log('Gemini rawResponse:', rawResponse);
-  
-  // Try to parse the JSON array from the response
-  try {
-    let jsonText = rawResponse;
-    // If not valid JSON, try to extract the first JSON array
-    if (!jsonText.trim().startsWith('[')) {
-      const firstBracket = jsonText.indexOf('[');
-      const lastBracket = jsonText.lastIndexOf(']');
-      if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-        jsonText = jsonText.substring(firstBracket, lastBracket + 1);
-      }
-    }
-    const suggestions = JSON.parse(jsonText);
-    if (!Array.isArray(suggestions)) throw new Error('AI did not return an array');
     return suggestions;
-  } catch (e) {
-    throw new Error('Failed to parse AI folder suggestions: ' + e.message + '\nRaw response: ' + rawResponse);
+  } catch (error) {
+    logger.error(`❌ Error getting folder suggestions:`, error);
+    throw error;
   }
 }

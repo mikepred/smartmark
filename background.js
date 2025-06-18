@@ -1,13 +1,23 @@
+/**
+ * @fileoverview Background Script for SmartMark Extension
+ * @module background
+ * @description Handles background operations for the SmartMark Chrome extension including:
+ * - Message handling from popup and content scripts
+ * - Bookmark classification orchestration
+ * - Bookmark saving with folder creation
+ * - Fallback mechanisms for error scenarios
+ */
+
 import { getApiKey, getFolderPathFromLLM } from '/utils/api.js';
 import { findOrCreateFolder, createBookmark } from '/utils/bookmark.js';
 import { handleError } from '/utils/error.js';
 import { sanitizeFolderPath, validateFolderName } from '/utils/validation.js';
+import { config } from '/utils/config/index.js';
 
-// File: background.js
-
-// ADD: introduce constant for metadata extraction timeout
-const METADATA_TIMEOUT_MS = 10000; // 10 seconds timeout for metadata extraction
-
+/**
+ * Sets up message listener for runtime communications
+ * @listens chrome.runtime.onMessage
+ */
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'classify') {
     classifyCurrentTab(sendResponse);
@@ -29,18 +39,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
+/**
+ * Classifies the current active tab by extracting metadata and getting folder suggestions
+ * @async
+ * @param {Function} sendResponse - Chrome extension response callback
+ * @returns {Promise<void>}
+ * 
+ * @description This function:
+ * 1. Gets the current active tab
+ * 2. Injects content script to extract metadata
+ * 3. Retrieves API key (if needed)
+ * 4. Calls AI API for folder classification
+ * 5. Handles errors with fallback mechanism
+ */
 async function classifyCurrentTab(sendResponse) {
-  // START REWRITE OF FUNCTION to add improved error handling
   try {
+    // Get current active tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab) {
       throw new Error("No active tab found.");
     }
 
-    // Set up a timeout in case the script injection hangs or returns no data
+    // Set up metadata extraction timeout
     let timeoutId;
     const timeoutPromise = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => reject(new Error("Timed out while extracting page metadata.")), METADATA_TIMEOUT_MS);
+      timeoutId = setTimeout(() => reject(new Error("Timed out while extracting page metadata.")), config.get('ui.metadataTimeout'));
     });
 
     // Inject content script and capture metadata
@@ -78,9 +101,11 @@ async function classifyCurrentTab(sendResponse) {
       console.log('No API key set - using local LLM provider');
     }
 
+    // Get folder suggestions from AI
     const folderSuggestions = await getFolderPathFromLLM(metadata, apiKey);
     sendResponse({ success: true, suggestions: folderSuggestions, metadata });
   } catch (error) {
+    // Handle errors with fallback mechanism
     const errorMessage = handleError('Classification', error);
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -92,11 +117,23 @@ async function classifyCurrentTab(sendResponse) {
   }
 }
 
+/**
+ * Handles fallback behavior when classification fails
+ * @async
+ * @param {chrome.tabs.Tab} tab - The current tab object
+ * @param {string} originalErrorMessage - The original error message from classification
+ * @param {Function} sendResponse - Chrome extension response callback
+ * @returns {Promise<void>}
+ * 
+ * @description Falls back to saving bookmark in a default folder when classification fails.
+ * This ensures bookmarks are never lost even if AI classification is unavailable.
+ */
 async function handleFallback(tab, originalErrorMessage, sendResponse) {
   try {
-    const fallbackFolderId = await findOrCreateFolder("Uncategorized");
+    const fallbackFolder = config.get('extension.fallbackFolder');
+    const fallbackFolderId = await findOrCreateFolder(fallbackFolder);
     await createBookmark(fallbackFolderId, tab.title, tab.url);
-    sendResponse({ success: false, error: `Saved to Uncategorized. ${originalErrorMessage}` });
+    sendResponse({ success: false, error: `Saved to ${fallbackFolder}. ${originalErrorMessage}` });
   } catch (fallbackError) {
     const fallbackErrorMessage = handleError('Fallback', fallbackError, true);
     sendResponse({ success: false, error: fallbackErrorMessage });

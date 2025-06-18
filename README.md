@@ -84,29 +84,74 @@ The extension will automatically:
 
 ```text
 smartmark/
-├── manifest.json              # Extension configuration (Manifest V3)
-├── background.js             # Service worker for AI classification
-├── content.js               # Content script for metadata extraction
-├── popup.html & popup.js    # Extension popup interface
+├── manifest.json                 # Extension configuration (Manifest V3)
+├── background.js                # Service worker for AI classification
+├── content.js                  # Content script for metadata extraction
+├── popup.html & popup.js       # Extension popup interface
 ├── settings.html & settings.js # Configuration interface
-├── package.json            # Development dependencies and scripts
+├── package.json               # Development dependencies and scripts
+├── docs/                     # Documentation
+│   ├── architecture.md      # System architecture overview
+│   ├── code-style-guide.md # Coding standards and conventions
+│   └── api-reference.md   # Comprehensive API documentation
 ├── icons/                 # Extension icons (16px to 128px)
 └── utils/                # Utility modules
-    ├── api.js           # AI API integration (Gemini, LM Studio, Ollama)
+    ├── api.js           # AI API integration orchestration
     ├── bookmark.js      # Chrome bookmarks API wrapper
     ├── storage.js       # Chrome storage utilities
     ├── validation.js    # Input validation and security
-    ├── error.js        # Error handling utilities
-    └── ui.js           # UI helper functions
+    ├── error.js        # Global error handling
+    ├── ui.js           # UI helper functions
+    ├── index.js        # Main utils entry point
+    ├── business/       # Business logic modules
+    │   ├── bookmark-classifier.js  # Classification logic
+    │   ├── suggestion-manager.js   # Suggestion state management
+    │   ├── bookmark-saver.js      # Bookmark saving logic
+    │   └── ui-controller.js       # UI coordination
+    ├── providers/      # AI provider implementations
+    │   ├── base.js         # Base provider class
+    │   ├── gemini.js       # Gemini provider
+    │   ├── lmstudio.js     # LM Studio provider
+    │   ├── ollama.js       # Ollama provider
+    │   ├── factory.js      # Provider factory
+    │   └── token-manager.js # Token optimization
+    ├── config/         # Configuration management
+    │   ├── index.js        # Configuration singleton
+    │   └── migration.js    # Settings migration
+    └── error/          # Error handling system
+        ├── errors.js       # Custom error classes
+        ├── logger.js       # Logging service
+        └── notifier.js     # User notifications
 ```
 
 ### Key Architecture Components
 
-- **Service Worker (`background.js`)**: Handles AI classification requests and bookmark management
+The extension follows a modular architecture with clear separation of concerns:
+
+#### Extension Layer
+- **Service Worker (`background.js`)**: Central message handler and orchestrator
 - **Content Script (`content.js`)**: Extracts page metadata for classification
-- **Popup Interface**: User interaction and folder selection
+- **Popup Interface (`popup.js`)**: Delegates all logic to UIController
 - **Settings Page**: API configuration and preferences
-- **Utility Modules**: Reusable functionality for API, storage, validation, and error handling
+
+#### Business Logic Layer
+- **BookmarkClassifier**: Handles classification requests and responses
+- **SuggestionManager**: Manages suggestion state with observer pattern
+- **BookmarkSaver**: Handles bookmark saving operations
+- **UIController**: Coordinates between business logic and UI
+
+#### Provider Abstraction Layer
+- **AIProvider**: Base class defining provider interface
+- **Provider Implementations**: Gemini, LM Studio, and Ollama
+- **AIProviderFactory**: Creates provider instances
+- **TokenManager**: Optimizes context for large bookmark collections
+
+#### Infrastructure Layer
+- **Configuration**: Centralized configuration with dot-notation access
+- **Error Handling**: Custom error classes, logging, and notifications
+- **Utilities**: Reusable functionality for storage, validation, and UI
+
+For detailed architecture information, see [docs/architecture.md](docs/architecture.md).
 
 ### AI Integration
 
@@ -173,10 +218,27 @@ Contributions are welcome! Please follow these guidelines:
 
 ### Development Guidelines
 
-- Follow existing code style and patterns
+- Follow the [Code Style Guide](docs/code-style-guide.md)
 - Add tests for new functionality
 - Update documentation for user-facing changes
 - Ensure security best practices are followed
+- Refer to the [API Reference](docs/api-reference.md) for module usage
+
+## Documentation
+
+Comprehensive documentation is available in the `docs/` directory:
+
+- **[Architecture Overview](docs/architecture.md)**: System design, data flow, and design patterns
+- **[Code Style Guide](docs/code-style-guide.md)**: Coding standards and conventions
+- **[API Reference](docs/api-reference.md)**: Detailed API documentation for all modules
+
+### Quick Links
+
+- [Business Logic APIs](docs/api-reference.md#business-logic-apis)
+- [Provider APIs](docs/api-reference.md#api-provider-apis)
+- [Configuration System](docs/api-reference.md#configuration-apis)
+- [Error Handling](docs/api-reference.md#error-handling-apis)
+- [Chrome Extension Message Passing](docs/api-reference.md#chrome-extension-apis)
 
 ## License
 

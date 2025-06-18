@@ -11,7 +11,7 @@
       font-family: system-ui, -apple-system, sans-serif; 
       text-align: center; 
       padding: 1em; 
-      width: 250px;
+      width: 350px;
       margin: 0;
     }
     button { 
@@ -23,6 +23,7 @@
       border: none;
       border-radius: 4px;
       cursor: pointer;
+      margin: 0.5em 0;
     }
     button:hover {
       background-color: #1557b0;
@@ -30,6 +31,14 @@
     button:disabled {
       background-color: #ccc;
       cursor: not-allowed;
+    }
+    .migration-btn {
+      background-color: #ff9800;
+      font-size: 0.9em;
+      padding: 0.8em;
+    }
+    .migration-btn:hover {
+      background-color: #f57c00;
     }
     #message { 
       margin-top: 1em; 
@@ -43,6 +52,14 @@
       display: none;
       margin-top: 1em;
     }
+    #migrationContainer {
+      margin-top: 1em;
+      text-align: left;
+    }
+    .section-divider {
+      border-top: 1px solid #ddd;
+      margin: 1.5em 0;
+    }
   </style>
 </head>
 <body>
@@ -50,6 +67,14 @@
   <div id="message" role="status" aria-live="polite"></div>
   <div id="suggestionsContainer"></div>
   <button id="saveBookmarkBtn">Save Bookmark</button>
+  
+  <div class="section-divider"></div>
+  
+  <button id="migrationBtn" class="migration-btn" aria-label="Migrate existing bookmarks to hierarchical folders">
+    Organize Existing Bookmarks
+  </button>
+  <div id="migrationContainer"></div>
+  
   <script type="module" src="popup.js"></script>
 </body>
 </html>

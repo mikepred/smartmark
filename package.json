@@ -2,8 +2,9 @@
   "name": "smartmark",
   "version": "1.0.0",
   "description": "An intelligent Chrome extension for automatic bookmark organization",
-  "main": "background.js",  "scripts": {
-    "test": "jest",
+  "main": "background.js",
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:verbose": "jest --verbose",
@@ -27,35 +28,5 @@
     "jest-environment-jsdom": "^29.7.0",
     "playwright": "^1.53.0"
   },
-  "jest": {
-    "testEnvironment": "jsdom",
-    "setupFilesAfterEnv": [
-      "<rootDir>/tests/setup.js"
-    ],
-    "collectCoverageFrom": [
-      "utils/**/*.js",
-      "!utils/**/*.test.js"
-    ],
-    "coverageDirectory": "coverage",
-    "coverageReporters": [
-      "text",
-      "lcov",
-      "html"
-    ],
-    "coverageThreshold": {
-      "global": {
-        "branches": 80,
-        "functions": 80,
-        "lines": 80,
-        "statements": 80
-      }
-    },
-    "moduleFileExtensions": [
-      "js"
-    ],
-    "testMatch": [
-      "**/tests/**/*.test.js",
-      "**/utils/**/*.test.js"
-    ]
-  }
+  "type": "module"
 }

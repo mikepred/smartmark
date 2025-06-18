@@ -87,3 +87,96 @@ artifacts/
 # Documentation build
 docs/.vuepress/dist/
 docs/.vitepress/dist/
+
+# Added by Task Master AI
+dev-debug.log
+
+# Dependency directories
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS specific
+
+# Cursor AI config (may contain API keys)
+.cursor/
+
+# Taskmaster config/state (may contain API keys)
+.taskmaster/config.json
+.taskmaster/state.json
+
+.env.example
+
+# Node modules
+node_modules/
+npm-debug.log*
+
+# Build outputs
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE files
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Extension specific
+*.crx
+*.pem
+web-ext-artifacts/
+
+# Logs
+logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Added by Task Master AI
+yarn-debug.log*
+yarn-error.log*
+dev-debug.log
+# Dependency directories
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+# OS specific
+# Task files
+tasks.json
+tasks/ 
+
+docs/
+
+.roo/
+.roomodes
+.windsurfrules
+
+.taskmaster/

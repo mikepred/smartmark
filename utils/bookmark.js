@@ -1,5 +1,42 @@
 // File: utils/bookmark.js
 
+import { config, getStorageKey } from './config/index.js';
+
+/**
+ * Splits a bookmark category path string into an array of normalized parts.
+ * Normalization rule: capitalize first character of each part for consistency.
+ *
+ * @example
+ *   parseCategoryPath('tech/ai/llms') => ['Tech', 'Ai', 'Llms']
+ *   parseCategoryPath('Tech/AI')       => ['Tech', 'AI']
+ * @param {string} path - Category path string using `/` as separator
+ * @returns {string[]} Normalized array of category parts
+ */
+export function parseCategoryPath(path = '') {
+  if (typeof path !== 'string') return [];
+  return path
+    .split('/')
+    .filter((part) => part.trim() !== '')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1));
+}
+
+/**
+ * Builds a category path string from an array of parts.
+ * Parts are normalized before join to ensure consistency.
+ *
+ * @example
+ *   buildCategoryPath(['Tech', 'AI', 'LLMs']) => 'Tech/AI/LLMs'
+ * @param {string[]} parts - Array of category parts
+ * @returns {string} Normalized category path
+ */
+export function buildCategoryPath(parts = []) {
+  if (!Array.isArray(parts)) return '';
+  return parts
+    .filter((part) => typeof part === 'string' && part.trim() !== '')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('/');
+}
+
 /**
  * Finds or creates a folder hierarchy based on the provided path
  * @param {string} path - The folder path to find or create (e.g., "Tech/Python")
@@ -7,13 +44,12 @@
  * @returns {Promise<string>} The ID of the final folder in the path
  */
 export async function findOrCreateFolder(path, startParentId = '1') {
-  const pathParts = path.split('/').filter(p => p.trim() !== '');
+  const pathParts = parseCategoryPath(path);
   let parentId = startParentId;
 
   for (let part of pathParts) {
-    // Capitalize the first letter of each part for consistent folder names
-    const normalizedPart = part.charAt(0).toUpperCase() + part.slice(1);
-    
+    const normalizedPart = part; // already normalized in parseCategoryPath
+
     const bookmarks = await chrome.bookmarks.getSubTree(parentId);
     let folder = bookmarks[0].children.find(
       (node) => node.title.toLowerCase() === normalizedPart.toLowerCase() && !node.url
@@ -84,9 +120,9 @@ export async function findBookmarkByUrl(url) {
  * Cache configuration for bookmark folder structure
  */
 const CACHE_CONFIG = {
-  key: 'bookmarkFolderStructure',
-  expiryKey: 'bookmarkFolderStructureExpiry',
-  ttlMinutes: 15 // Cache Time-To-Live in minutes
+  key: getStorageKey('bookmarkCache'),
+  expiryKey: getStorageKey('cacheTimestamp'),
+  ttlMinutes: config.get('storage.cache.ttl') / 60000 // Convert milliseconds to minutes
 };
 
 /**
