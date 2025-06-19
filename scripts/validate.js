@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 function validateExtension() {
   console.log('🔍 Validating SmartMark extension...');
@@ -13,7 +13,6 @@ function validateExtension() {
   const requiredFiles = [
     'manifest.json',
     'background.js',
-    'content.js',
     'popup.html',
     'popup.js',
     'settings.html',
@@ -33,7 +32,7 @@ function validateExtension() {
   });
 
   // Check required directories
-  const requiredDirs = ['icons', 'utils'];
+  const requiredDirs = ['icons', 'lib'];
   
   console.log('📁 Checking required directories...');
   requiredDirs.forEach(dir => {
@@ -104,16 +103,16 @@ function validateExtension() {
     }
   });
 
-  // Check utility files
-  console.log('🔧 Checking utility files...');
-  const utilFiles = ['api.js', 'bookmark.js', 'storage.js', 'validation.js', 'error.js', 'ui.js'];
-  utilFiles.forEach(file => {
-    const filePath = path.join('utils', file);
+  // Check library files
+  console.log('🔧 Checking library files...');
+  const libFiles = ['ai.js', 'bookmarks.js', 'storage.js'];
+  libFiles.forEach(file => {
+    const filePath = path.join('lib', file);
     if (fs.existsSync(filePath)) {
-      console.log(`  ✓ utils/${file}`);
+      console.log(`  ✓ lib/${file}`);
     } else {
-      console.log(`  ❌ utils/${file} - MISSING`);
-      issues.push(`Missing utility file: utils/${file}`);
+      console.log(`  ❌ lib/${file} - MISSING`);
+      issues.push(`Missing library file: lib/${file}`);
       isValid = false;
     }
   });
@@ -131,8 +130,9 @@ function validateExtension() {
   }
 }
 
-if (require.main === module) {
+// Execute if this file is run directly
+if (import.meta.url === `file://${process.argv[1]}`) {
   validateExtension();
 }
 
-module.exports = { validateExtension };
+export { validateExtension };

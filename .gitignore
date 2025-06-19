@@ -71,7 +71,6 @@ tmp/
 temp/
 
 # API Keys (security)
-config/keys.js
 secrets.json
 .secrets
 api-keys.json
@@ -172,8 +171,6 @@ dev-debug.log
 # Task files
 tasks.json
 tasks/ 
-
-docs/
 
 .roo/
 .roomodes

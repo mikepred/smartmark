@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
-const path = require('path');
-const { execSync } = require('child_process');
+import fs from 'fs';
+import path from 'path';
+import { execSync } from 'child_process';
 
 const packageName = 'smartmark-extension';
 const distDir = 'dist';
@@ -11,7 +11,6 @@ const distDir = 'dist';
 const essentialFiles = [
   'manifest.json',
   'background.js',
-  'content.js',
   'popup.html',
   'popup.js',
   'settings.html',
@@ -22,7 +21,7 @@ const essentialFiles = [
 
 const essentialDirectories = [
   'icons',
-  'utils'
+  'lib'
 ];
 
 function createPackage() {
@@ -99,8 +98,8 @@ function copyDirectory(src, dest) {
   }
 }
 
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   createPackage();
 }
 
-module.exports = { createPackage };
+export { createPackage };

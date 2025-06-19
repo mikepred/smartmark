@@ -55,11 +55,48 @@
     #suggestions input[type="radio"] {
       margin-right: 0.5em;
     }
+    .radio-columns-container {
+      margin-top: 0.5em;
+      margin-left: 0.5em;
+      display: flex;
+      gap: 0.5em;
+      flex-wrap: wrap;
+    }
+    .radio-column {
+      flex: 1;
+      min-width: 100px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 0.5em;
+      background-color: #f9f9f9;
+    }
+    .radio-column h4 {
+      margin: 0 0 0.5em 0;
+      font-size: 0.85em;
+      font-weight: 600;
+      color: #555;
+      text-align: center;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 0.3em;
+    }
+    .radio-column label {
+      display: block;
+      margin: 0.2em 0;
+      font-size: 0.8em;
+      cursor: pointer;
+      padding: 0.2em;
+      border-radius: 2px;
+    }
+    .radio-column label:hover {
+      background-color: #e3f2fd;
+    }
+    .radio-column input[type="radio"] {
+      margin-right: 0.4em;
+    }
   </style>
 </head>
 <body>
-  <button id="classifyBtn" aria-label="Classify current page as bookmark">Classify Bookmark</button>
-  <div id="message" role="status" aria-live="polite"></div>
+  <div id="message" role="status" aria-live="polite">Classifying bookmark...</div>
   <div id="suggestions"></div>
   <button id="saveBtn" style="display: none;">Save Bookmark</button>
   

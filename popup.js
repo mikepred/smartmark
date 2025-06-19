@@ -3,18 +3,17 @@ let currentSuggestions = [];
 let currentMetadata = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('classifyBtn').addEventListener('click', classify);
   document.getElementById('saveBtn').addEventListener('click', save);
+  // Auto-start classification when popup loads
+  classify();
 });
 
 async function classify() {
-  const btn = document.getElementById('classifyBtn');
   const messageEl = document.getElementById('message');
   const suggestionsEl = document.getElementById('suggestions');
   
-  btn.disabled = true;
-  btn.textContent = 'Classifying...';
-  messageEl.textContent = '';
+  messageEl.textContent = 'Classifying bookmark...';
+  messageEl.style.color = '';
   suggestionsEl.innerHTML = '';
   
   try {
@@ -34,22 +33,78 @@ async function classify() {
     messageEl.textContent = 'Failed to classify bookmark';
     messageEl.style.color = '#d32f2f';
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Classify Bookmark';
+    // No button to re-enable since classification happens automatically
   }
 }
 
 function displaySuggestions(suggestions) {
   const container = document.getElementById('suggestions');
   
-  container.innerHTML = suggestions.map((s, i) => `
+  // Extract unique categories from all suggestions
+  const level1Categories = [...new Set(suggestions.map(s => s.folderPath.split('/')[0]))];
+  const level2Categories = [...new Set(suggestions.map(s => s.folderPath.split('/')[1]).filter(Boolean))];
+  const level3Categories = [...new Set(suggestions.map(s => s.folderPath.split('/')[2]).filter(Boolean))];
+  
+  const suggestionsHTML = suggestions.map((s, i) => `
     <div>
       <label>
         <input type="radio" name="folder" value="${i}" ${i === 0 ? 'checked' : ''}>
-        ${s.folderPath} (${Math.round(s.confidence * 100)}%)
+        ${s.folderPath}
       </label>
     </div>
   `).join('');
+  
+  const customOptionHTML = `
+    <div>
+      <label>
+        <input type="radio" name="folder" value="custom">
+        Custom path:
+      </label>
+      <div class="radio-columns-container">
+        <div class="radio-column">
+          <h4>Level 1</h4>
+          ${level1Categories.map(cat => `
+            <label>
+              <input type="radio" name="level1" value="${cat}">
+              ${cat}
+            </label>
+          `).join('')}
+        </div>
+        <div class="radio-column">
+          <h4>Level 2</h4>
+          ${level2Categories.map(cat => `
+            <label>
+              <input type="radio" name="level2" value="${cat}">
+              ${cat}
+            </label>
+          `).join('')}
+        </div>
+        <div class="radio-column">
+          <h4>Level 3</h4>
+          ${level3Categories.map(cat => `
+            <label>
+              <input type="radio" name="level3" value="${cat}">
+              ${cat}
+            </label>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+  
+  container.innerHTML = suggestionsHTML + customOptionHTML;
+  
+  // Add event listeners to automatically select custom radio when level radio buttons are used
+  const levelRadios = container.querySelectorAll('input[name="level1"], input[name="level2"], input[name="level3"]');
+  const customRadio = container.querySelector('input[value="custom"]');
+  
+  levelRadios.forEach(radio => {
+    radio.addEventListener('change', () => {
+      if (radio.checked) {
+        customRadio.checked = true;
+      }
+    });
+  });
 }
 
 async function save() {
@@ -63,17 +118,40 @@ async function save() {
   btn.textContent = 'Saving...';
   
   try {
-    const suggestion = currentSuggestions[parseInt(selected.value)];
+    let folderPath;
+    
+    if (selected.value === 'custom') {
+      // Handle custom radio button selection
+      const level1Radio = document.querySelector('input[name="level1"]:checked');
+      const level2Radio = document.querySelector('input[name="level2"]:checked');
+      const level3Radio = document.querySelector('input[name="level3"]:checked');
+      
+      if (!level1Radio) {
+        messageEl.textContent = 'Please select at least Level 1 category';
+        messageEl.style.color = '#d32f2f';
+        return;
+      }
+      
+      // Build custom folder path
+      folderPath = level1Radio.value;
+      if (level2Radio) folderPath += '/' + level2Radio.value;
+      if (level3Radio) folderPath += '/' + level3Radio.value;
+    } else {
+      // Handle regular suggestion selection
+      const suggestion = currentSuggestions[parseInt(selected.value)];
+      folderPath = suggestion.folderPath;
+    }
+    
     const response = await chrome.runtime.sendMessage({
       action: 'saveBookmark',
-      folderPath: suggestion.folderPath,
+      folderPath: folderPath,
       metadata: currentMetadata
     });
     
     if (response.success) {
       messageEl.textContent = response.fallback 
         ? 'Saved to Uncategorized folder'
-        : `Saved to ${suggestion.folderPath}`;
+        : `Saved to ${folderPath}`;
       messageEl.style.color = '#2e7d32';
       
       // Reset UI
