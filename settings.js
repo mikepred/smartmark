@@ -1,84 +1,142 @@
-// File: settings.js
+// settings.js - Complete implementation
+import { getConfig, saveConfig, saveSecure } from './lib/storage.js';
 
-import { displayMessage, clearMessage } from '/utils/ui.js';
-import { saveToStorage, getFromStorage, validateApiKey } from '/utils/storage.js';
-
-const aiProviderSelect = document.getElementById('aiProvider');
-const apiKeyInput = document.getElementById('apiKey');
-const lmstudioHostInput = document.getElementById('lmstudioHost');
-const lmstudioPortInput = document.getElementById('lmstudioPort');
-const ollamaHostInput = document.getElementById('ollamaHost');
-const ollamaPortInput = document.getElementById('ollamaPort');
-const saveButton = document.getElementById('save');
-const statusDiv = document.getElementById('status');
-const geminiConfig = document.getElementById('geminiConfig');
-const lmstudioConfig = document.getElementById('lmstudioConfig');
-const ollamaConfig = document.getElementById('ollamaConfig');
-
-// Show or hide configuration sections based on selected provider
-function updateConfigVisibility() {
-  const provider = aiProviderSelect.value;
-  geminiConfig.classList.toggle('hidden', provider !== 'gemini');
-  lmstudioConfig.classList.toggle('hidden', provider !== 'lmstudio');
-  ollamaConfig.classList.toggle('hidden', provider !== 'ollama');
+function updateVisibility() {
+  const provider = document.getElementById('provider').value;
+  const providers = ['gemini', 'lmstudio', 'openai', 'anthropic', 'openrouter', 'together', 'perplexity', 'groq', 'mistral', 'cohere'];
+  
+  providers.forEach(p => {
+    const element = document.getElementById(`${p}Settings`);
+    if (element) {
+      element.style.display = provider === p ? 'block' : 'none';
+    }
+  });
 }
 
-// Load saved settings when the settings page is opened
 document.addEventListener('DOMContentLoaded', async () => {
-  const savedProvider = await getFromStorage('aiProvider') || 'gemini';
-  aiProviderSelect.value = savedProvider;
-  updateConfigVisibility();
+  const config = await getConfig();
   
-  if (savedProvider === 'gemini') {
-    const savedApiKey = await getFromStorage('apiKey');
-    if (savedApiKey) {
-      apiKeyInput.value = savedApiKey;
+  // Load current settings
+  document.getElementById('provider').value = config.provider;
+  
+  // Load provider-specific settings
+  const fields = {
+    apiKey: config.apiKey,
+    host: config.host,
+    port: config.port,
+    model: config.model,
+    openaiApiKey: config.openaiApiKey,
+    openaiModel: config.openaiModel,
+    anthropicApiKey: config.anthropicApiKey,
+    anthropicModel: config.anthropicModel,
+    openrouterApiKey: config.openrouterApiKey,
+    openrouterModel: config.openrouterModel,
+    togetherApiKey: config.togetherApiKey,
+    togetherModel: config.togetherModel,
+    perplexityApiKey: config.perplexityApiKey,
+    perplexityModel: config.perplexityModel,
+    groqApiKey: config.groqApiKey,
+    groqModel: config.groqModel,
+    mistralApiKey: config.mistralApiKey,
+    mistralModel: config.mistralModel,
+    cohereApiKey: config.cohereApiKey,
+    cohereModel: config.cohereModel
+  };
+  
+  Object.entries(fields).forEach(([key, value]) => {
+    const element = document.getElementById(key);
+    if (element && value) {
+      element.value = value;
     }
-  } else if (savedProvider === 'lmstudio') {
-    const savedHost = await getFromStorage('lmstudioHost');
-    const savedPort = await getFromStorage('lmstudioPort');
-    if (savedHost) lmstudioHostInput.value = savedHost;
-    if (savedPort) lmstudioPortInput.value = savedPort;
-  } else if (savedProvider === 'ollama') {
-    const savedHost = await getFromStorage('ollamaHost');
-    const savedPort = await getFromStorage('ollamaPort');
-    if (savedHost) ollamaHostInput.value = savedHost;
-    if (savedPort) ollamaPortInput.value = savedPort;
-  }
+  });
+  
+  updateVisibility();
+  
+  document.getElementById('provider').addEventListener('change', updateVisibility);
+  document.getElementById('saveBtn').addEventListener('click', saveSettings);
 });
 
-// Update visibility when provider selection changes
-aiProviderSelect.addEventListener('change', updateConfigVisibility);
-
-// Save settings when the save button is clicked
-saveButton.addEventListener('click', async (event) => {
-  event.preventDefault();
-  const provider = aiProviderSelect.value;
-  await saveToStorage('aiProvider', provider);
+async function saveSettings() {
+  const statusEl = document.getElementById('status');
   
-  if (provider === 'gemini') {
-    const apiKey = apiKeyInput.value.trim();
-    if (!apiKey) {
-      displayMessage(statusDiv, 'Please enter an API key for Gemini.', true);
-      return;
+  try {
+    const getValue = (id) => {
+      const element = document.getElementById(id);
+      return element ? element.value : '';
+    };
+    
+    const config = {
+      provider: getValue('provider'),
+      // Gemini
+      apiKey: getValue('apiKey'),
+      // LM Studio
+      host: getValue('host'),
+      port: parseInt(getValue('port')) || 1234,
+      model: getValue('model'),
+      // OpenAI
+      openaiApiKey: getValue('openaiApiKey'),
+      openaiModel: getValue('openaiModel') || 'gpt-4o-mini',
+      // Anthropic
+      anthropicApiKey: getValue('anthropicApiKey'),
+      anthropicModel: getValue('anthropicModel') || 'claude-3-haiku-20240307',
+      // OpenRouter
+      openrouterApiKey: getValue('openrouterApiKey'),
+      openrouterModel: getValue('openrouterModel') || 'anthropic/claude-3-haiku',
+      // Together AI
+      togetherApiKey: getValue('togetherApiKey'),
+      togetherModel: getValue('togetherModel') || 'meta-llama/Llama-3-8b-chat-hf',
+      // Perplexity
+      perplexityApiKey: getValue('perplexityApiKey'),
+      perplexityModel: getValue('perplexityModel') || 'llama-3.1-sonar-small-128k-chat',
+      // Groq
+      groqApiKey: getValue('groqApiKey'),
+      groqModel: getValue('groqModel') || 'llama-3.1-8b-instant',
+      // Mistral
+      mistralApiKey: getValue('mistralApiKey'),
+      mistralModel: getValue('mistralModel') || 'mistral-small-latest',
+      // Cohere
+      cohereApiKey: getValue('cohereApiKey'),
+      cohereModel: getValue('cohereModel') || 'command-r'
+    };
+    
+    // Basic validation - check if API key is provided for the selected provider
+    const provider = config.provider;
+    const requiresApiKey = ['gemini', 'openai', 'anthropic', 'openrouter', 'together', 'perplexity', 'groq', 'mistral', 'cohere'];
+    
+    if (requiresApiKey.includes(provider)) {
+      const apiKeyField = provider === 'gemini' ? 'apiKey' : `${provider}ApiKey`;
+      if (!config[apiKeyField]) {
+        throw new Error(`API key required for ${provider}`);
+      }
     }
-    if (!validateApiKey(apiKey)) {
-      displayMessage(statusDiv, 'Invalid API key format. Please check your Gemini API key.', true);
-      return;
+    
+    // Save API keys securely
+    const apiKeyMappings = {
+      gemini: 'gemini_key',
+      openai: 'openai_key',
+      anthropic: 'anthropic_key',
+      openrouter: 'openrouter_key',
+      together: 'together_key',
+      perplexity: 'perplexity_key',
+      groq: 'groq_key',
+      mistral: 'mistral_key',
+      cohere: 'cohere_key'
+    };
+    
+    if (apiKeyMappings[provider]) {
+      const apiKeyField = provider === 'gemini' ? 'apiKey' : `${provider}ApiKey`;
+      const apiKey = config[apiKeyField];
+      if (apiKey) {
+        await saveSecure(apiKeyMappings[provider], apiKey);
+      }
     }
-    await saveToStorage('apiKey', apiKey);
-  } else if (provider === 'lmstudio') {
-    const host = lmstudioHostInput.value.trim() || 'localhost';
-    const port = lmstudioPortInput.value.trim() || '1234';
-    await saveToStorage('lmstudioHost', host);
-    await saveToStorage('lmstudioPort', port);
-  } else if (provider === 'ollama') {
-    const host = ollamaHostInput.value.trim() || 'localhost';
-    const port = ollamaPortInput.value.trim() || '11434';
-    await saveToStorage('ollamaHost', host);
-    await saveToStorage('ollamaPort', port);
+    
+    await saveConfig(config);
+    
+    statusEl.textContent = 'Settings saved';
+    statusEl.style.color = '#2e7d32';
+  } catch (error) {
+    statusEl.textContent = error.message;
+    statusEl.style.color = '#d32f2f';
   }
-  
-  displayMessage(statusDiv, 'Settings saved.');
-  clearMessage(statusDiv, 2000);
-});
+}

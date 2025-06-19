@@ -15,11 +15,20 @@
     "activeTab",
     "bookmarks",
     "storage",
-    "scripting",
-    "downloads"
+    "scripting"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "https://generativelanguage.googleapis.com/*",
+    "https://api.openai.com/*",
+    "https://api.anthropic.com/*",
+    "https://openrouter.ai/*",
+    "https://api.together.xyz/*",
+    "https://api.perplexity.ai/*",
+    "https://api.groq.com/*",
+    "https://api.mistral.ai/*",
+    "https://api.cohere.ai/*",
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -38,6 +47,6 @@
   },
   "options_page": "settings.html",
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline'"
+    "extension_pages": "script-src 'self'; object-src 'self'"
   }
 }

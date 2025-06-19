@@ -45,35 +45,23 @@
       min-height: 20px;
       word-wrap: break-word;
     }
-    #suggestionsContainer {
-      margin-top: 1em;
-    }
-    #saveBookmarkBtn {
-      display: none;
-      margin-top: 1em;
-    }
-    #migrationContainer {
+    #suggestions {
       margin-top: 1em;
       text-align: left;
     }
-    .section-divider {
-      border-top: 1px solid #ddd;
-      margin: 1.5em 0;
+    #suggestions div {
+      margin: 0.5em 0;
+    }
+    #suggestions input[type="radio"] {
+      margin-right: 0.5em;
     }
   </style>
 </head>
 <body>
   <button id="classifyBtn" aria-label="Classify current page as bookmark">Classify Bookmark</button>
   <div id="message" role="status" aria-live="polite"></div>
-  <div id="suggestionsContainer"></div>
-  <button id="saveBookmarkBtn">Save Bookmark</button>
-  
-  <div class="section-divider"></div>
-  
-  <button id="migrationBtn" class="migration-btn" aria-label="Migrate existing bookmarks to hierarchical folders">
-    Organize Existing Bookmarks
-  </button>
-  <div id="migrationContainer"></div>
+  <div id="suggestions"></div>
+  <button id="saveBtn" style="display: none;">Save Bookmark</button>
   
   <script type="module" src="popup.js"></script>
 </body>
