@@ -32,36 +32,67 @@ export async function classifyBookmark(metadata) {
   return parseResponse(response);
 }
 
-function buildPrompt(metadata, existingFolders) {
-  const folderContext = existingFolders.length > 0 
-    ? `\nEXISTING FOLDER STRUCTURE (prefer reusing these when topically relevant):\n${existingFolders.map(f => `- ${f}`).join('\n')}\n`
-    : '';
+class SecurePromptBuilder {
+  static buildIsolatedPrompt(metadata, existingFolders) {
+    // Create semantic separation between system instructions and user content
+    const systemInstructions = this.getSystemInstructions();
+    const userContent = this.sanitizeUserContent(metadata);
+    const folderContext = this.buildFolderContext(existingFolders);
+    const responseFormat = this.getResponseFormat();
+    
+    // Use template-based approach with clear boundaries
+    return `${systemInstructions}
 
-  return `You MUST classify this bookmark into a deep 3-level folder hierarchy. Always use the format: MainCategory/Subcategory/SpecificTopic
+--- USER CONTENT START ---
+${userContent}
+--- USER CONTENT END ---
 
-Title: ${SecuritySanitizer.sanitizeForPrompt(metadata.title)}
-URL: ${SecuritySanitizer.sanitizeForPrompt(metadata.url)}
-Description: ${SecuritySanitizer.sanitizeForPrompt(metadata.description)}
-Content: ${SecuritySanitizer.sanitizeForPrompt(metadata.content)}
 ${folderContext}
-CRITICAL: Each folderPath must have exactly 3 levels separated by forward slashes.
 
-PRIORITIZATION RULES:
-1. Create semantically appropriate 3-level paths based on the content
-2. ONLY reuse existing folders when they are genuinely topically relevant (strong semantic match)
-3. Prefer logical categorization over forcing poor matches with existing folders
-4. You may reuse parts of existing paths (like main categories) while creating new subcategories
-5. When in doubt, create new appropriate paths rather than misusing existing ones
+${responseFormat}`;
+  }
+  
+  static getSystemInstructions() {
+    return `SYSTEM: You are a bookmark classification assistant. Your task is to classify bookmarks into a 3-level folder hierarchy using the format: MainCategory/Subcategory/SpecificTopic
 
-Examples of correct 3-level paths:
-- "Technology/Programming/JavaScript"
-- "Entertainment/Movies/Action Films"
-- "Education/Science/Physics"
-
-Return ONLY a JSON array with this exact format:
+CRITICAL REQUIREMENTS:
+- Each folderPath must have exactly 3 levels separated by forward slashes
+- Create semantically appropriate paths based on the content
+- Prioritize logical categorization over forcing matches with existing folders
+- Return exactly 5 suggestions as JSON array`;
+  }
+  
+  static sanitizeUserContent(metadata) {
+    return `BOOKMARK_TITLE: ${SecuritySanitizer.sanitizeForPrompt(metadata.title)}
+BOOKMARK_URL: ${SecuritySanitizer.sanitizeForPrompt(metadata.url)}
+BOOKMARK_DESCRIPTION: ${SecuritySanitizer.sanitizeForPrompt(metadata.description)}
+BOOKMARK_CONTENT: ${SecuritySanitizer.sanitizeForPrompt(metadata.content)}`;
+  }
+  
+  static buildFolderContext(existingFolders) {
+    if (existingFolders.length === 0) return '';
+    
+    const sanitizedFolders = existingFolders
+      .slice(0, 20) // Limit to prevent context pollution
+      .map(f => SecuritySanitizer.sanitizeFolderPath(f))
+      .filter(f => f && f !== 'Uncategorized');
+    
+    return `EXISTING_FOLDERS: ${sanitizedFolders.join(', ')}`;
+  }
+  
+  static getResponseFormat() {
+    return `RESPONSE_FORMAT: Return ONLY a JSON array with this exact structure:
 [{"folderPath":"MainCategory/Subcategory/SpecificTopic"}]
 
-Provide exactly 5 suggestions with 3-level folder paths, prioritizing semantic accuracy over existing folder reuse.`;
+EXAMPLES:
+- Technology/Programming/JavaScript
+- Entertainment/Movies/Action Films
+- Education/Science/Physics`;
+  }
+}
+
+function buildPrompt(metadata, existingFolders) {
+  return SecurePromptBuilder.buildIsolatedPrompt(metadata, existingFolders);
 }
 
 function parseResponse(response) {

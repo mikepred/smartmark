@@ -43,22 +43,110 @@ async function extractMetadata(tabId) {
   const results = await chrome.scripting.executeScript({
     target: { tabId },
     func: () => {
-      // Inline content extraction - no external script
-      return {
-        title: document.title,
+      // Enhanced content extraction with validation
+      const metadata = {
+        title: document.title || '',
         url: window.location.href,
         description: document.querySelector('meta[name="description"]')?.content || '',
-        // Only extract what's needed for classification
-        content: Array.from(document.querySelectorAll('h1, h2, p'))
-          .slice(0, 5)
-          .map(el => el.textContent)
-          .join(' ')
-          .slice(0, 500)
+        content: ''
       };
+      
+      // Validate URL scheme and domain
+      try {
+        const urlObj = new URL(metadata.url);
+        if (!['http:', 'https:'].includes(urlObj.protocol)) {
+          throw new Error('Invalid protocol');
+        }
+        // Add basic domain validation
+        if (urlObj.hostname.length === 0 || urlObj.hostname.includes('..')) {
+          throw new Error('Invalid hostname');
+        }
+      } catch (e) {
+        return null; // Reject invalid URLs
+      }
+      
+      // Enhanced content extraction with coherence checks
+      const contentElements = Array.from(document.querySelectorAll('h1, h2, h3, p, article, main'))
+        .slice(0, 8)
+        .map(el => el.textContent?.trim())
+        .filter(text => text && text.length > 10 && text.length < 200)
+        .filter(text => !containsSuspiciousPatterns(text));
+      
+      metadata.content = contentElements.join(' ').slice(0, 400);
+      
+      // Content coherence validation
+      if (!validateContentCoherence(metadata)) {
+        metadata.content = metadata.content.slice(0, 200); // Truncate suspicious content
+      }
+      
+      return metadata;
+      
+      function containsSuspiciousPatterns(text) {
+        const suspiciousPatterns = [
+          /system:?\s*you\s+are/i,
+          /ignore\s+(previous|above|all)/i,
+          /javascript:/i,
+          /data:/i,
+          /<script/i,
+          /eval\s*\(/i,
+          /document\.write/i
+        ];
+        return suspiciousPatterns.some(pattern => pattern.test(text));
+      }
+      
+      function validateContentCoherence(metadata) {
+        // Basic coherence checks
+        const titleWords = metadata.title.toLowerCase().split(/\s+/).slice(0, 5);
+        const contentWords = metadata.content.toLowerCase().split(/\s+/);
+        
+        // Check if title relates to content (basic semantic check)
+        const overlap = titleWords.filter(word => 
+          word.length > 3 && contentWords.some(cWord => cWord.includes(word))
+        );
+        
+        return overlap.length > 0 || metadata.content.length < 100;
+      }
     }
   });
   
-  return results[0]?.result;
+  const result = results[0]?.result;
+  
+  // Server-side validation
+  if (!result || !validateExtractedMetadata(result)) {
+    throw new Error('Invalid or suspicious metadata extracted');
+  }
+  
+  return result;
+}
+
+function validateExtractedMetadata(metadata) {
+  // Content validation policy
+  const policy = {
+    maxTitleLength: 120,
+    maxDescriptionLength: 300,
+    maxContentLength: 400,
+    allowedProtocols: ['http:', 'https:']
+  };
+  
+  // Validate structure
+  if (!metadata || typeof metadata !== 'object') return false;
+  
+  // Validate title
+  if (!metadata.title || metadata.title.length > policy.maxTitleLength) return false;
+  
+  // Validate URL
+  try {
+    const url = new URL(metadata.url);
+    if (!policy.allowedProtocols.includes(url.protocol)) return false;
+  } catch (e) {
+    return false;
+  }
+  
+  // Validate content lengths
+  if (metadata.description && metadata.description.length > policy.maxDescriptionLength) return false;
+  if (metadata.content && metadata.content.length > policy.maxContentLength) return false;
+  
+  return true;
 }
 
 async function handleSaveBookmark({ folderPath, metadata }, sendResponse) {
