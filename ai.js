@@ -1,5 +1,6 @@
 // ai.js - Simplified for LM Studio
 import { getFolderStructure } from './bookmarks.js';
+import { SecuritySanitizer } from './security.js';
 
 const lmstudioProvider = {
   async call(prompt) {
@@ -38,10 +39,10 @@ function buildPrompt(metadata, existingFolders) {
 
   return `You MUST classify this bookmark into a deep 3-level folder hierarchy. Always use the format: MainCategory/Subcategory/SpecificTopic
 
-Title: ${metadata.title}
-URL: ${metadata.url}
-Description: ${metadata.description}
-Content: ${metadata.content}
+Title: ${SecuritySanitizer.sanitizeForPrompt(metadata.title)}
+URL: ${SecuritySanitizer.sanitizeForPrompt(metadata.url)}
+Description: ${SecuritySanitizer.sanitizeForPrompt(metadata.description)}
+Content: ${SecuritySanitizer.sanitizeForPrompt(metadata.content)}
 ${folderContext}
 CRITICAL: Each folderPath must have exactly 3 levels separated by forward slashes.
 
@@ -69,13 +70,27 @@ function parseResponse(response) {
     const match = response.match(/\[[\s\S]*\]/);
     if (!match) throw new Error('No JSON array found');
     
-    const suggestions = JSON.parse(match[0]);
+    const parsed = JSON.parse(match[0]);
     
-    // Validate and sanitize
-    return suggestions
-      .filter(s => s.folderPath)
+    // Strict validation
+    if (!Array.isArray(parsed)) {
+      throw new Error('Response must be array');
+    }
+    
+    if (!SecuritySanitizer.validateAIResponse(parsed)) {
+      throw new Error('Invalid AI response structure');
+    }
+    
+    return parsed
+      .filter(item => 
+        item && 
+        typeof item === 'object' && 
+        typeof item.folderPath === 'string' &&
+        item.folderPath.length > 0 &&
+        item.folderPath.length < 200
+      )
       .map(s => ({
-        folderPath: sanitizeFolderPath(s.folderPath)
+        folderPath: SecuritySanitizer.sanitizeFolderPath(s.folderPath)
       }))
       .slice(0, 5);
   } catch (error) {
@@ -84,24 +99,3 @@ function parseResponse(response) {
   }
 }
 
-function sanitizeFolderPath(path) {
-  const parts = path
-    .replace(/[<>:"|?*\\]/g, '')
-    .replace(/\.\./g, '')
-    .split('/')
-    .map(part => {
-      // Add spaces before capital letters to fix concatenated words
-      return part.trim()
-        .replace(/([a-z])([A-Z])/g, '$1 $2')
-        .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2');
-    })
-    .filter(part => part.length > 0)
-    .slice(0, 3);
-  
-  // Ensure exactly 3 levels - pad with "General" if needed
-  while (parts.length < 3) {
-    parts.push('General');
-  }
-  
-  return parts.join('/');
-}

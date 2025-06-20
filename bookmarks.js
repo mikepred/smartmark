@@ -1,4 +1,5 @@
 // lib/bookmarks.js - Complete implementation
+import { SecuritySanitizer } from './security.js';
 let folderCache = null;
 let cacheTime = 0;
 const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
@@ -24,7 +25,8 @@ export async function createBookmarkInFolder(folderPath, title, url) {
 }
 
 async function ensureFolderExists(path) {
-  const parts = path.split('/').filter(p => p.length > 0);
+  const sanitizedPath = SecuritySanitizer.sanitizeFolderPath(path);
+  const parts = sanitizedPath.split('/').filter(p => p.length > 0);
   let parentId = '1'; // Bookmarks bar
   
   for (const folderName of parts) {
