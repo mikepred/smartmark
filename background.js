@@ -1,6 +1,6 @@
 // background.js - Complete implementation
-import { classifyBookmark } from './lib/ai.js';
-import { createBookmarkInFolder } from './lib/bookmarks.js';
+import { classifyBookmark } from './ai.js';
+import { createBookmarkInFolder } from './bookmarks.js';
 
 const METADATA_TIMEOUT = 5000;
 const FALLBACK_FOLDER = 'Uncategorized';

@@ -1,4 +1,4 @@
-// lib/ai.js - Simplified for LM Studio
+// ai.js - Simplified for LM Studio
 import { getFolderStructure } from './bookmarks.js';
 
 const lmstudioProvider = {
